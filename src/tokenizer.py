@@ -1,46 +1,121 @@
 from collections import defaultdict
 import sys
-import click
+
 from pathlib import Path
 import regex as re
 from loguru import logger
 
 logger.remove()
-logger.add(sys.stderr, level="DEBUG")
+logger.add(sys.stderr, level="INFO")
 
 
-@click.command()
-@click.option("--input_path", help="Path to corpus", type=Path)
-@click.option("--vocab_size", help="Max vocab size in integer", type=int)
-@click.option(
-    "--special_tokens", help="comma separated list of special_tokens", type=str
-)
-def tokenize(input_path, vocab_size, special_tokens):
-    """Tokenize a corpus with BPE."""
-    corpus = open(input_path).read()
-    logger.debug(f"{corpus = }")
+class Tokenizer:
+    def __init__(self, corpus, vocab_size, special_tokens):
+        self.max_vocab_size = vocab_size
+        self.corpus: str | None = None
+        self.special_tokens: list[str] | None = None
+        self.merges: list[tuple[int]] | None = None
+        self.vocab: dict[int, str] | None = None
+        self.vocab_reverse: dict[str, int] | None = None
+        self.chunks: list[tuple[int]] | None = None
 
-    # pre_tokenizer_pattern = (
-    #     r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
-    # )
-    pre_tokenizer_pattern = r"\w+\s+"
+        self.__init_load_corpus(corpus)
+        self.__init_load_special_tokens(special_tokens)
 
-    pre_tokenized = re.finditer(pre_tokenizer_pattern, corpus)
+        self.merges = []
+        self.vocab = dict((i, chr(i)) for i in range(256))
+        for token in self.special_tokens:
+            self.vocab[len(self.vocab)] = token
 
-    pre_tokenized_counts = defaultdict(int)
-    for chunks in pre_tokenized:
-        pre_tokenized_counts[chunks.group()] += 1
+        self.vocab_reverse = dict((v, k) for k, v in self.vocab.items())
 
-    logger.debug(f"{pre_tokenized_counts = }")
+        self.vocab_size = lambda: len(self.vocab)
 
-    # TODO: BPE: merge
-    # TODO: BPE: speedup?
+        self.chunks = self.__init_chunk_with_regex()
+
+    def __init_load_corpus(self, corpus):
+        if Path.exists(corpus):
+            self.corpus = open(corpus).read()
+        elif isinstance(corpus, str):
+            self.corpus = corpus
+        else:
+            raise ValueError("`corpus` must either be a path or string")
+
+    def __init_load_special_tokens(self, special_tokens: str):
+        self.special_tokens: list[str] = list(
+            map(lambda token: token.strip(), special_tokens.split(","))
+        )
+
+    def __init_chunk_with_regex(self):
+        pattern = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+
+        pre_tokenized = re.finditer(pattern, self.corpus)
+        pre_tokenized_bytes = [
+            tuple(map(lambda ch: ord(ch), match.group())) for match in pre_tokenized
+        ]
+
+        return pre_tokenized_bytes
+
+    def _compute_byte_pair_frequency(self):
+        byte_pairs_with_frequency = defaultdict(int)
+
+        for bytes in self.chunks:
+            for i in range(len(bytes) - 1):
+                byte_pairs_with_frequency[(bytes[i], bytes[i + 1])] += 1
+
+        return byte_pairs_with_frequency
+
+    def _merge_most_frequent_byte_pair(self, byte_pairs_with_frequency):
+        sorted_byte_pairs_with_frequency = sorted(
+            byte_pairs_with_frequency.items(),
+            key=lambda el: (el[1], el[0]),
+            reverse=True,
+        )
+
+        most_frequent_byte_pair = sorted_byte_pairs_with_frequency[0][0]
+        token_id = len(self.vocab)
+        self.vocab[token_id] = (
+            self.vocab[most_frequent_byte_pair[0]]
+            + self.vocab[most_frequent_byte_pair[1]]
+        )
+        self.vocab_reverse[self.vocab[token_id]] = token_id
+        self.merges.append(most_frequent_byte_pair)
+
+        new_chunks = []
+        for chunk in self.chunks:
+            new_chunks.append(
+                tuple(
+                    map(
+                        int,
+                        (
+                            "-".join(map(str, chunk)).replace(
+                                "-".join(map(str, most_frequent_byte_pair)),
+                                str(token_id),
+                            )
+                        ).split("-"),
+                    )
+                )
+            )
+
+        self.chunks = new_chunks
+
+    def train(self):
+        """Tokenize a corpus with BPE."""
+
+        while self.vocab_size() < self.max_vocab_size:
+            self._merge_most_frequent_byte_pair(self._compute_byte_pair_frequency())
+            logger.debug(f"{ self.merges = }")
+
+        return self.vocab, self.merges
 
 
 if __name__ == "__main__":
-    test_corpus = "data/short.txt"
-    special_tokens = "<|endoftext|>"
-    vocab_size = 400
+    t = Tokenizer(
+        Path("data/short.txt"),
+        vocab_size=263,
+        special_tokens="<|endoftext|>",
+    )
 
-    ctx = click.Context(tokenize)
-    ctx.forward(tokenize, input_path=test_corpus, vocab_size=vocab_size, special_tokens=special_tokens)
+    t.train()
+    logger.info(f"{ t.vocab = }")
+    logger.info(f"{ t.vocab_reverse = }")
