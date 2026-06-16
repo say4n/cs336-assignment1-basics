@@ -111,8 +111,8 @@ class Tokenizer:
 
 if __name__ == "__main__":
     t = Tokenizer(
-        Path("data/short.txt"),
-        vocab_size=263,
+        Path("data/TinyStoriesV2-GPT4-valid.txt"),
+        vocab_size=10000,
         special_tokens="<|endoftext|>",
     )
 
