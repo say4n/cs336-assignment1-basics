@@ -7,7 +7,7 @@ from loguru import logger
 from joblib import Parallel, delayed
 
 logger.remove()
-logger.add(sys.stderr, level="DEBUG")
+logger.add(sys.stderr, level="INFO")
 
 
 class Tokenizer:
