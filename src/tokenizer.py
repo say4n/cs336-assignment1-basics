@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 import regex as re
 from loguru import logger
+from joblib import Parallel, delayed
 
 logger.remove()
 logger.add(sys.stderr, level="DEBUG")
@@ -75,30 +76,31 @@ class Tokenizer:
         self.vocab_reverse[self.vocab[token_id]] = token_id
         self.merges.append(most_frequent_byte_pair)
 
-        new_chunks = []
-        for chunk in self.chunks:
-            new_chunks.append(
-                tuple(
-                    map(
-                        int,
-                        (
-                            "-".join(map(str, chunk)).replace(
-                                "-".join(map(str, most_frequent_byte_pair)),
-                                str(token_id),
-                            )
-                        ).split("-"),
-                    )
+        aux_joined_byte_pair = "-".join(map(str, most_frequent_byte_pair))
+
+        def process_chunk(chunk):
+            return tuple(
+                map(
+                    int,
+                    (
+                        "-".join(map(str, chunk)).replace(
+                            aux_joined_byte_pair,
+                            str(token_id),
+                        )
+                    ).split("-"),
                 )
             )
 
-        self.chunks = new_chunks
+        self.chunks = Parallel(n_jobs=1)(delayed(process_chunk)(c) for c in self.chunks)
 
     def train(self):
         """Tokenize a corpus with BPE."""
 
         while self.vocab_size() < self.max_vocab_size:
             self._merge_most_frequent_byte_pair(self._compute_byte_pair_frequency())
-            logger.debug(f"{ self.merges = }, { self.vocab_size() / self.max_vocab_size :.4f}")
+            logger.debug(
+                f"{ self.merges = }, { self.vocab_size() / self.max_vocab_size :.4f}"
+            )
 
         return self.vocab, self.merges
 
