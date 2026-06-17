@@ -6,21 +6,20 @@ import regex as re
 from loguru import logger
 
 logger.remove()
-logger.add(sys.stderr, level="INFO")
+logger.add(sys.stderr, level="DEBUG")
 
 
 class Tokenizer:
     def __init__(self, corpus, vocab_size, special_tokens):
         self.max_vocab_size = vocab_size
+        self.special_tokens: list[str] = special_tokens
         self.corpus: str | None = None
-        self.special_tokens: list[str] | None = None
         self.merges: list[tuple[int]] | None = None
         self.vocab: dict[int, str] | None = None
         self.vocab_reverse: dict[str, int] | None = None
         self.chunks: list[tuple[int]] | None = None
 
         self.__init_load_corpus(corpus)
-        self.__init_load_special_tokens(special_tokens)
 
         self.merges = []
         self.vocab = dict((i, chr(i)) for i in range(256))
@@ -40,11 +39,6 @@ class Tokenizer:
             self.corpus = corpus
         else:
             raise ValueError("`corpus` must either be a path or string")
-
-    def __init_load_special_tokens(self, special_tokens: str):
-        self.special_tokens: list[str] = list(
-            map(lambda token: token.strip(), special_tokens.split(","))
-        )
 
     def __init_chunk_with_regex(self):
         pattern = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
@@ -104,7 +98,7 @@ class Tokenizer:
 
         while self.vocab_size() < self.max_vocab_size:
             self._merge_most_frequent_byte_pair(self._compute_byte_pair_frequency())
-            logger.debug(f"{ self.merges = }")
+            logger.debug(f"{ self.merges = }, { self.vocab_size() / self.max_vocab_size :.4f}")
 
         return self.vocab, self.merges
 
@@ -112,8 +106,8 @@ class Tokenizer:
 if __name__ == "__main__":
     t = Tokenizer(
         Path("data/TinyStoriesV2-GPT4-valid.txt"),
-        vocab_size=10000,
-        special_tokens="<|endoftext|>",
+        vocab_size=300,
+        special_tokens=["<|endoftext|>"],
     )
 
     t.train()

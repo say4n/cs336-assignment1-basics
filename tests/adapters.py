@@ -1,4 +1,5 @@
 from __future__ import annotations
+from src.tokenizer import Tokenizer
 
 import os
 from collections.abc import Iterable
@@ -589,4 +590,12 @@ def run_train_bpe(
                 representing that <token1> was merged with <token2>.
                 Merges are ordered by order of creation.
     """
-    raise NotImplementedError
+    t = Tokenizer(
+        input_path,
+        vocab_size,
+        special_tokens
+    )
+
+    t.train()
+
+    return t.vocab, t.merges
