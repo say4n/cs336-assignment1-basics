@@ -1,3 +1,4 @@
+import time
 from collections import defaultdict
 import sys
 
@@ -96,7 +97,9 @@ class Tokenizer:
 
             return tuple(replaced_chunk)
 
-        self.chunks = Parallel(n_jobs=-1)(delayed(process_chunk)(c) for c in self.chunks)
+        self.chunks = Parallel(n_jobs=1)(
+            delayed(process_chunk)(c) for c in self.chunks
+        )
 
     def train(self):
         """Tokenize a corpus with BPE."""
@@ -117,6 +120,9 @@ if __name__ == "__main__":
         special_tokens=["<|endoftext|>"],
     )
 
+    start_time = time.time()
     t.train()
+    delta_time = time.time() - start_time
+    logger.info(f"trained in {delta_time} sec.")
     # logger.info(f"{ t.vocab = }")
     # logger.info(f"{ t.vocab_reverse = }")
