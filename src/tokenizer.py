@@ -23,6 +23,7 @@ class Tokenizer:
         self.__init_load_corpus(corpus)
 
         self.merges = []
+        self.can_merge = True
         self.vocab = dict((i, chr(i)) for i in range(256))
         for token in self.special_tokens:
             self.vocab[len(self.vocab)] = token
@@ -67,6 +68,12 @@ class Tokenizer:
             reverse=True,
         )
 
+        if not sorted_byte_pairs_with_frequency:
+            self.can_merge = False
+            return
+
+        logger.debug(f"{ self.vocab_size() = }")
+
         most_frequent_byte_pair = sorted_byte_pairs_with_frequency[0][0]
         token_id = len(self.vocab)
         self.vocab[token_id] = (
@@ -76,30 +83,28 @@ class Tokenizer:
         self.vocab_reverse[self.vocab[token_id]] = token_id
         self.merges.append(most_frequent_byte_pair)
 
-        aux_joined_byte_pair = "-".join(map(str, most_frequent_byte_pair))
+        def process_chunk(chunk: tuple[int]) -> tuple[int]:
+            replaced_chunk, i = [], 0
 
-        def process_chunk(chunk):
-            return tuple(
-                map(
-                    int,
-                    (
-                        "-".join(map(str, chunk)).replace(
-                            aux_joined_byte_pair,
-                            str(token_id),
-                        )
-                    ).split("-"),
-                )
-            )
+            while i < len(chunk) - 1:
+                if chunk[i] == most_frequent_byte_pair[0] and chunk[i+1] == most_frequent_byte_pair[1]:
+                    replaced_chunk.append(token_id)
+                    i += 2
+                else:
+                    replaced_chunk.append(chunk[i])
+                    i += 1
 
-        self.chunks = Parallel(n_jobs=1)(delayed(process_chunk)(c) for c in self.chunks)
+            return tuple(replaced_chunk)
+
+        self.chunks = Parallel(n_jobs=-1)(delayed(process_chunk)(c) for c in self.chunks)
 
     def train(self):
         """Tokenize a corpus with BPE."""
 
-        while self.vocab_size() < self.max_vocab_size:
+        while self.vocab_size() < self.max_vocab_size and self.can_merge:
             self._merge_most_frequent_byte_pair(self._compute_byte_pair_frequency())
             logger.debug(
-                f"{ self.merges = }, { self.vocab_size() / self.max_vocab_size :.4f}"
+                f"n_vocab % = { self.vocab_size() / self.max_vocab_size :.4f} | { self.merges = }"
             )
 
         return self.vocab, self.merges
@@ -107,11 +112,11 @@ class Tokenizer:
 
 if __name__ == "__main__":
     t = Tokenizer(
-        Path("data/TinyStoriesV2-GPT4-valid.txt"),
-        vocab_size=300,
+        Path("tests/fixtures/corpus.en"),
+        vocab_size=500,
         special_tokens=["<|endoftext|>"],
     )
 
     t.train()
-    logger.info(f"{ t.vocab = }")
-    logger.info(f"{ t.vocab_reverse = }")
+    # logger.info(f"{ t.vocab = }")
+    # logger.info(f"{ t.vocab_reverse = }")
