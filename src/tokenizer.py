@@ -20,7 +20,7 @@ class Tokenizer:
         self.merges: list[tuple[bytes, bytes]] | None = None
         self.vocab: dict[int, bytes] | None = None
         self.vocab_reverse: dict[bytes, int] | None = None
-        self.chunks: list[tuple[int, ...]] | None = None
+        self.chunks: dict[tuple[int, ...], int] = defaultdict(int)
 
         self.__init_load_corpus(corpus)
 
@@ -37,7 +37,7 @@ class Tokenizer:
 
         self.vocab_size = lambda: len(self.vocab)
 
-        self.chunks = self.__init_chunk_with_regex()
+        self.__init_chunk_with_regex()
 
     def __init_load_corpus(self, corpus):
         if Path.exists(corpus):
@@ -51,21 +51,17 @@ class Tokenizer:
         pattern = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
         pre_tokenized = re.finditer(pattern, self.corpus)
-        pre_tokenized_bytes = []
 
         for match in pre_tokenized:
-            pre_tokenized_bytes.append(
-                tuple(int(byte) for byte in bytes(match.group(), "utf-8"))
-            )
-
-        return pre_tokenized_bytes
+            key = tuple(int(byte) for byte in bytes(match.group(), "utf-8"))
+            self.chunks[key] += 1
 
     def _compute_byte_pair_frequency(self) -> dict[tuple[int, int], int]:
         byte_pairs_with_frequency = defaultdict(int)
 
-        for bb in self.chunks:
+        for bb in self.chunks.keys():
             for i in range(len(bb) - 1):
-                byte_pairs_with_frequency[(bb[i], bb[i + 1])] += 1
+                byte_pairs_with_frequency[(bb[i], bb[i + 1])] += self.chunks[bb]
 
         return byte_pairs_with_frequency
 
@@ -95,7 +91,7 @@ class Tokenizer:
             self.vocab[most_frequent_byte_pair[1]],
         ))
 
-        def process_chunk(chunk: tuple[int]) -> tuple[int]:
+        def process_chunk(chunk: tuple[int], frequency: int) -> tuple[int]:
             replaced_chunk, i = [], 0
 
             while i < len(chunk):
@@ -106,9 +102,9 @@ class Tokenizer:
                     replaced_chunk.append(chunk[i])
                     i += 1
 
-            return tuple(replaced_chunk)
+            return tuple(replaced_chunk), frequency
 
-        self.chunks = [process_chunk(c) for c in self.chunks]
+        self.chunks = dict(process_chunk(k, v) for k, v in self.chunks.items())
 
     def train(self) -> tuple[dict[int, bytes] | None, list[tuple[bytes, bytes]] | None]:
         """Tokenize a corpus with BPE."""
@@ -145,4 +141,4 @@ if __name__ == "__main__":
     delta_time = time.time() - start_time
     logger.info(f"trained in {delta_time} sec.")
 
-    t.write_merges_to_file()
+    # t.write_merges_to_file()
