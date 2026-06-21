@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 import regex as re
 from loguru import logger
-from joblib import Parallel, delayed
 
 from tests.common import gpt2_bytes_to_unicode
 
@@ -109,9 +108,7 @@ class Tokenizer:
 
             return tuple(replaced_chunk)
 
-        self.chunks = Parallel(n_jobs=1)(
-            delayed(process_chunk)(c) for c in self.chunks
-        )
+        self.chunks = [process_chunk(c) for c in self.chunks]
 
     def train(self) -> tuple[dict[int, bytes] | None, list[tuple[bytes, bytes]] | None]:
         """Tokenize a corpus with BPE."""
