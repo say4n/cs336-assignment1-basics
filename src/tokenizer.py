@@ -10,7 +10,7 @@ from joblib import Parallel, delayed
 from tests.common import gpt2_bytes_to_unicode
 
 logger.remove()
-logger.add(sys.stderr, level="WARN")
+logger.add(sys.stderr, level="ERROR")
 
 
 class Tokenizer:
@@ -29,6 +29,9 @@ class Tokenizer:
         self.can_merge = True
         self.vocab = dict((i, bytes([i])) for i in range(256))
         for token in self.special_tokens:
+            if self.corpus:
+                self.corpus.replace(token, "")
+
             self.vocab[len(self.vocab)] = bytes(token, "utf-8")
 
         self.vocab_reverse = dict((v, k) for k, v in self.vocab.items())
