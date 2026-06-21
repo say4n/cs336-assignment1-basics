@@ -3,6 +3,7 @@
         "codepoint",
         "endoftext",
         "jaxtyping",
+        "pretoken",
         "repr",
         "sdmt",
         "tinystories",
