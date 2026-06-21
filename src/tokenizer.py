@@ -45,7 +45,11 @@ class Tokenizer:
             raise ValueError("`corpus` must either be a path or string")
 
     def __init_chunk_with_regex(self):
-        word_boundary_pattern = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+        word_boundary_pattern = re.compile(
+            r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+        )
+
+        pretoken_counts = defaultdict(int)
 
         if self.special_tokens:
             special_token_pattern = "|".join(
@@ -60,9 +64,11 @@ class Tokenizer:
             if not part or part in self.special_tokens:
                 continue
 
-            for match in re.finditer(word_boundary_pattern, part):
-                key = tuple(match.group().encode("utf-8"))
-                self.chunks[key] += 1
+            for match in word_boundary_pattern.finditer(part):
+                pretoken_counts[match.group()] += 1
+
+        for pretoken, count in pretoken_counts.items():
+            self.chunks[tuple(pretoken.encode("utf-8"))] += count
 
     def _compute_byte_pair_frequency(self) -> dict[tuple[int, int], int]:
         byte_pairs_with_frequency = defaultdict(int)
@@ -143,8 +149,7 @@ class Tokenizer:
 
 if __name__ == "__main__":
     t = Tokenizer(
-        Path("tests/fixtures/corpus.en"),
-        # Path("data/short.txt"),
+        Path("data/TinyStoriesV2-GPT4-train.txt"),
         vocab_size=500,
         special_tokens=["<|endoftext|>"],
     )
