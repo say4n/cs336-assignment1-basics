@@ -10,7 +10,7 @@ from joblib import Parallel, delayed
 from tests.common import gpt2_bytes_to_unicode
 
 logger.remove()
-logger.add(sys.stderr, level="ERROR")
+logger.add(sys.stderr, level="INFO")
 
 
 class Tokenizer:
@@ -73,10 +73,9 @@ class Tokenizer:
     def _merge_most_frequent_byte_pair(
         self, byte_pairs_with_frequency: dict[tuple[int, int], int]
     ):
-        sorted_byte_pairs_with_frequency = sorted(
+        sorted_byte_pairs_with_frequency = max(
             byte_pairs_with_frequency.items(),
             key=lambda el: (el[1], tuple(map(lambda tid: self.vocab[tid], el[0]))),
-            reverse=True,
         )
 
         if not sorted_byte_pairs_with_frequency:
@@ -85,7 +84,7 @@ class Tokenizer:
 
         logger.debug(f"{ self.vocab_size() = }")
 
-        most_frequent_byte_pair = sorted_byte_pairs_with_frequency[0][0]
+        most_frequent_byte_pair = sorted_byte_pairs_with_frequency[0]
         token_id = len(self.vocab)
         self.vocab[token_id] = (
             self.vocab[most_frequent_byte_pair[0]]
