@@ -1,5 +1,4 @@
 from tqdm import tqdm
-from functools import reduce
 import time
 from collections import Counter
 import sys
@@ -99,7 +98,8 @@ class Tokenizer:
                 Parallel(n_jobs=-1, return_as="generator")(
                     delayed(process_part)(part) for part in parts
                 ),
-                total=len(parts)
+                total=len(parts),
+                desc="Pre-tokenizing"
             ):
             pretoken_counts.update(partial_pretoken_count)
 
@@ -165,12 +165,18 @@ class Tokenizer:
 
     def train(self) -> tuple[dict[int, bytes] | None, list[tuple[bytes, bytes]] | None]:
         """Tokenize a corpus with BPE."""
+        logger.debug(f"{ len(self.chunks) = }")
+        logger.debug(f"{ sum(self.chunks.values()) = }")
+        logger.debug(f"{ sum(map(len, self.chunks.keys())) = }")
 
-        while self.vocab_size() < self.max_vocab_size and self.can_merge:
-            self._merge_most_frequent_byte_pair(self._compute_byte_pair_frequency())
-            logger.debug(
-                f"n_vocab % = { self.vocab_size() / self.max_vocab_size :.4f} | { self.merges = }"
-            )
+        with tqdm(total=100, desc="Training", unit_scale=True) as pbar:
+            while self.vocab_size() < self.max_vocab_size and self.can_merge:
+                self._merge_most_frequent_byte_pair(self._compute_byte_pair_frequency())
+                logger.debug(
+                    f"n_vocab % = { self.vocab_size() / self.max_vocab_size :.4f} | { self.merges = }"
+                )
+                delta = self.vocab_size() / self.max_vocab_size - pbar.n
+                pbar.update(delta)
 
         return self.vocab, self.merges
 
@@ -188,7 +194,7 @@ class Tokenizer:
 if __name__ == "__main__":
     t = Tokenizer(
         Path("data/TinyStoriesV2-GPT4-train.txt"),
-        vocab_size=1000,
+        vocab_size=10_000,
         special_tokens=["<|endoftext|>"],
     )
 
