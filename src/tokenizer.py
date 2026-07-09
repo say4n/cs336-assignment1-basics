@@ -1,10 +1,13 @@
+from tqdm import tqdm
+from functools import reduce
 import time
-from collections import defaultdict
+from collections import Counter
 import sys
 
 from pathlib import Path
 import regex as re
 from loguru import logger
+from joblib import delayed, Parallel
 
 from tests.common import gpt2_bytes_to_unicode
 
@@ -20,7 +23,7 @@ class Tokenizer:
         self.merges: list[tuple[bytes, bytes]] = list()
         self.vocab: dict[int, bytes] = dict()
         self.vocab_reverse: dict[bytes, int] = dict()
-        self.chunks: dict[tuple[int, ...], int] = defaultdict(int)
+        self.chunks: dict[tuple[int, ...], int] = Counter()
 
         self.__init_load_corpus(corpus)
 
@@ -49,29 +52,64 @@ class Tokenizer:
             r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
         )
 
-        pretoken_counts = defaultdict(int)
+        pretoken_counts = Counter()
 
         if self.special_tokens:
             special_token_pattern = "|".join(
                 re.escape(tok)
                 for tok in sorted(self.special_tokens, key=len, reverse=True)
             )
-            parts = re.split(f"({special_token_pattern})", self.corpus)
+            raw_parts = filter(
+                lambda part: part not in self.special_tokens,
+                re.split(f"({special_token_pattern})", self.corpus),
+            )
         else:
-            parts = [self.corpus]
+            raw_parts = [self.corpus]
 
-        for part in parts:
-            if not part or part in self.special_tokens:
-                continue
+        # Accumulate parts into chunks after removing special tokens.
+        parts = []
+        accumulated = 0
+        current = ""
+
+        for part in raw_parts:
+            current += part
+            accumulated += len(part)
+
+            if accumulated >= 100_000:
+                parts.append(current)
+                current = ""
+                accumulated = 0
+
+        if current:
+            parts.append(current)
+
+        logger.debug(f"processing { len(parts) = }")
+
+        def process_part(part: str) -> Counter[int]:
+            partial_pretoken_counts = Counter()
 
             for match in word_boundary_pattern.finditer(part):
-                pretoken_counts[match.group()] += 1
+                partial_pretoken_counts[match.group()] += 1
+
+            return Counter(partial_pretoken_counts)
+
+        pretoken_counts = Counter()
+
+        for partial_pretoken_count in tqdm(
+                Parallel(n_jobs=-1, return_as="generator")(
+                    delayed(process_part)(part) for part in parts
+                ),
+                total=len(parts)
+            ):
+            pretoken_counts.update(partial_pretoken_count)
+
+        logger.debug(f"processed { len(parts) = }")
 
         for pretoken, count in pretoken_counts.items():
             self.chunks[tuple(pretoken.encode("utf-8"))] += count
 
     def _compute_byte_pair_frequency(self) -> dict[tuple[int, int], int]:
-        byte_pairs_with_frequency = defaultdict(int)
+        byte_pairs_with_frequency = Counter()
 
         for bb, count in self.chunks.items():
             for i in range(len(bb) - 1):
@@ -118,7 +156,7 @@ class Tokenizer:
 
             return tuple(replaced_chunk), frequency
 
-        new_chunks = defaultdict(int)
+        new_chunks = Counter()
         for k, v in self.chunks.items():
             ret_k, ret_v = process_chunk(k, v)
             new_chunks[ret_k] += ret_v
@@ -150,13 +188,13 @@ class Tokenizer:
 if __name__ == "__main__":
     t = Tokenizer(
         Path("data/TinyStoriesV2-GPT4-train.txt"),
-        vocab_size=500,
+        vocab_size=1000,
         special_tokens=["<|endoftext|>"],
     )
 
     start_time = time.time()
     vocab, merges = t.train()
     delta_time = time.time() - start_time
-    logger.info(f"trained in {delta_time} sec.")
+    logger.info(f"trained tokenizer in {delta_time} sec.")
 
     # t.write_merges_to_file()
