@@ -225,7 +225,7 @@ class Tokenizer:
 if __name__ == "__main__":
     t = Tokenizer(
         Path("data/TinyStoriesV2-GPT4-train.txt"),
-        vocab_size=1_000,
+        vocab_size=10_000,
         special_tokens=["<|endoftext|>"],
     )
 
