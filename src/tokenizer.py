@@ -125,7 +125,7 @@ class Tokenizer:
             self.can_merge = False
             return
 
-        # Sorted by frequency, O(n log n) -- could be better to store as a max-heap?
+        # Pick max by frequency, O(n)
         # Looks like: ((tok_a, tok_b), freq)
         most_frequent_byte_pair_with_frequency = max(
             self.byte_pairs_with_frequency.items(),
@@ -186,8 +186,18 @@ class Tokenizer:
 
         new_chunks = Counter()
         for k, v in self.chunks.items():
-            ret_k, ret_v = process_chunk(k, v)
-            new_chunks[ret_k] += ret_v
+            # Check if a chunks actually needs replacing.
+            needs_replacing = False
+            for i in range(len(k) - 1):
+                if k[i] == most_frequent_byte_pair[0] and k[i+1] == most_frequent_byte_pair[1]:
+                    needs_replacing = True
+                    break
+
+            if needs_replacing:
+                ret_k, ret_v = process_chunk(k, v)
+                new_chunks[ret_k] += ret_v
+            else:
+                new_chunks[k] += v
 
         self.chunks = new_chunks
 
