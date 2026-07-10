@@ -85,7 +85,7 @@ class Tokenizer:
 
         logger.debug(f"processing { len(parts_of_parts) = }")
 
-        def process_part(part_of_parts: str) -> Counter[int]:
+        def process_part(part_of_parts: list[str]) -> Counter[str, int]:
             partial_pretoken_counts = Counter()
 
             for part in part_of_parts:
