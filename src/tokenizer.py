@@ -23,6 +23,7 @@ class Tokenizer:
         self.vocab: dict[int, bytes] = dict()
         self.vocab_reverse: dict[bytes, int] = dict()
         self.chunks: dict[tuple[int, ...], int] = Counter()
+        self.byte_pairs_with_frequency: dict[tuple[int, int], int] = Counter()
 
         self.__init_load_corpus(corpus)
 
@@ -66,71 +67,74 @@ class Tokenizer:
             raw_parts = [self.corpus]
 
         # Accumulate parts into chunks after removing special tokens.
-        parts = []
+        parts_of_parts = []
         accumulated = 0
-        current = ""
+        current = []
 
         for part in raw_parts:
-            current += part
+            current.append(part)
             accumulated += len(part)
 
             if accumulated >= 100_000:
-                parts.append(current)
-                current = ""
+                parts_of_parts.append(current)
+                current = []
                 accumulated = 0
 
         if current:
-            parts.append(current)
+            parts_of_parts.append(current)
 
-        logger.debug(f"processing { len(parts) = }")
+        logger.debug(f"processing { len(parts_of_parts) = }")
 
-        def process_part(part: str) -> Counter[int]:
+        def process_part(part_of_parts: str) -> Counter[int]:
             partial_pretoken_counts = Counter()
 
-            for match in word_boundary_pattern.finditer(part):
-                partial_pretoken_counts[match.group()] += 1
+            for part in part_of_parts:
+                for match in word_boundary_pattern.finditer(part):
+                    partial_pretoken_counts[match.group()] += 1
 
             return Counter(partial_pretoken_counts)
 
         pretoken_counts = Counter()
 
         for partial_pretoken_count in tqdm(
-                Parallel(n_jobs=-1, return_as="generator")(
-                    delayed(process_part)(part) for part in parts
-                ),
-                total=len(parts),
-                desc="Pre-tokenizing"
-            ):
+            Parallel(n_jobs=-1, return_as="generator")(
+                delayed(process_part)(part_of_parts) for part_of_parts in parts_of_parts
+            ),
+            total=len(parts_of_parts),
+            desc="Pre-tokenizing",
+        ):
             pretoken_counts.update(partial_pretoken_count)
 
-        logger.debug(f"processed { len(parts) = }")
+        logger.debug(f"processed { len(parts_of_parts) = }")
 
         for pretoken, count in pretoken_counts.items():
             self.chunks[tuple(pretoken.encode("utf-8"))] += count
 
-    def _compute_byte_pair_frequency(self) -> dict[tuple[int, int], int]:
+    def _seed_byte_pair_frequency(self) -> dict[tuple[int, int], int]:
         byte_pairs_with_frequency = Counter()
 
         for bb, count in self.chunks.items():
             for i in range(len(bb) - 1):
                 byte_pairs_with_frequency[(bb[i], bb[i + 1])] += count
 
-        return byte_pairs_with_frequency
+        self.byte_pairs_with_frequency = byte_pairs_with_frequency
 
-    def _merge_most_frequent_byte_pair(
-        self, byte_pairs_with_frequency: dict[tuple[int, int], int]
-    ):
-        if not byte_pairs_with_frequency:
+    def _merge_most_frequent_byte_pair(self):
+        # Empty sequence, can't merge anymore.
+        if not self.byte_pairs_with_frequency:
             self.can_merge = False
             return
 
+        # Sorted by frequency, O(n log n) -- could be better to store as a max-heap?
+        # Looks like: ((tok_a, tok_b), freq)
         most_frequent_byte_pair_with_frequency = max(
-            byte_pairs_with_frequency.items(),
+            self.byte_pairs_with_frequency.items(),
             key=lambda el: (el[1], tuple(map(lambda tid: self.vocab[tid], el[0]))),
         )
 
         logger.debug(f"{ self.vocab_size() = }")
 
+        # Add byte pair as new token to vocab.
         most_frequent_byte_pair = most_frequent_byte_pair_with_frequency[0]
         token_id = len(self.vocab)
         self.vocab[token_id] = (
@@ -143,16 +147,40 @@ class Tokenizer:
             self.vocab[most_frequent_byte_pair[1]],
         ))
 
+        # Replace byte pairs in chunk L -> R with new token.
         def process_chunk(chunk: tuple[int], frequency: int) -> tuple[tuple[int, ...], int]:
             replaced_chunk, i = [], 0
+            chunk_contains_bp = False
 
             while i < len(chunk):
+                # Byte pair (i, i+1) being replaced.
                 if i < len(chunk) - 1 and chunk[i] == most_frequent_byte_pair[0] and chunk[i+1] == most_frequent_byte_pair[1]:
                     replaced_chunk.append(token_id)
                     i += 2
+                    chunk_contains_bp = True
                 else:
                     replaced_chunk.append(chunk[i])
                     i += 1
+
+            # Recompute byte pairs for chunk.
+            if chunk_contains_bp:
+                # Subtract counts for previous chunk.
+                for i in range(len(chunk) - 1):
+                    self.byte_pairs_with_frequency[
+                        (chunk[i], chunk[i + 1])
+                    ] -= frequency
+
+                    # Remove byte pairs with 0 frequency.
+                    if self.byte_pairs_with_frequency[
+                        (chunk[i], chunk[i + 1])
+                    ] == 0:
+                        del self.byte_pairs_with_frequency[(chunk[i], chunk[i + 1])]
+
+                # Add counts using replaced bytes.
+                for i in range(len(replaced_chunk) - 1):
+                    self.byte_pairs_with_frequency[
+                        (replaced_chunk[i], replaced_chunk[i + 1])
+                    ] += frequency
 
             return tuple(replaced_chunk), frequency
 
@@ -170,12 +198,15 @@ class Tokenizer:
         logger.debug(f"{ sum(map(len, self.chunks.keys())) = }")
 
         with tqdm(total=100, desc="Training", unit_scale=True) as pbar:
+            # Seed initial byte pair frequency.
+            self._seed_byte_pair_frequency()
+
             while self.vocab_size() < self.max_vocab_size and self.can_merge:
-                self._merge_most_frequent_byte_pair(self._compute_byte_pair_frequency())
+                self._merge_most_frequent_byte_pair()
                 logger.debug(
                     f"n_vocab % = { self.vocab_size() / self.max_vocab_size :.4f} | { self.merges = }"
                 )
-                delta = self.vocab_size() / self.max_vocab_size - pbar.n
+                delta = 100 * (self.vocab_size() / self.max_vocab_size) - pbar.n
                 pbar.update(delta)
 
         return self.vocab, self.merges
@@ -194,7 +225,7 @@ class Tokenizer:
 if __name__ == "__main__":
     t = Tokenizer(
         Path("data/TinyStoriesV2-GPT4-train.txt"),
-        vocab_size=10_000,
+        vocab_size=1_000,
         special_tokens=["<|endoftext|>"],
     )
 
