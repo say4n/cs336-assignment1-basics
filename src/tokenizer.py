@@ -1,3 +1,5 @@
+from typing import Iterator
+from typing import Iterable
 from tqdm import tqdm
 import time
 from collections import Counter
@@ -230,6 +232,33 @@ class Tokenizer:
         with open("merges.txt", "w", encoding="utf-8") as f:
             for a, b in self.merges:
                 f.write(render(a) + " " + render(b) + "\n")
+
+class SerializedTokenizer:
+
+    def __init__(
+        self,
+        vocab: dict[int, bytes],
+        merges: list[tuple[bytes, bytes]],
+        special_tokens: list[str] | None = None,
+    ):
+        pass
+
+    def from_files(
+        cls,
+        vocab_filepath: str,
+        merges_filepath: str,
+        special_tokens: list[str] | None = None,
+    ):
+        pass
+
+    def encode(self, text: str) -> list[int]:
+        pass
+
+    def encode_iterable(self, iterable: Iterable[str]) -> Iterator[int]:
+        pass
+
+    def decode(self, ids: list[int]) -> str:
+        pass
 
 
 if __name__ == "__main__":
