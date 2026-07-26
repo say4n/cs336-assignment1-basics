@@ -1,5 +1,4 @@
-from typing import Iterator
-from typing import Iterable
+from collections.abc import Iterable, Iterator
 from tqdm import tqdm
 import time
 from collections import Counter
