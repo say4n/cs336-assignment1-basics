@@ -57,8 +57,7 @@ class Tokenizer:
 
         if self.special_tokens:
             special_token_pattern = "|".join(
-                re.escape(tok)
-                for tok in sorted(self.special_tokens, key=len, reverse=True)
+                re.escape(tok) for tok in sorted(self.special_tokens, key=len, reverse=True)
             )
             raw_parts = filter(
                 lambda part: part not in self.special_tokens,
@@ -232,8 +231,8 @@ class Tokenizer:
             for a, b in self.merges:
                 f.write(render(a) + " " + render(b) + "\n")
 
-class SerializedTokenizer:
 
+class SerializedTokenizer:
     def __init__(
         self,
         vocab: dict[int, bytes],
@@ -261,23 +260,26 @@ class SerializedTokenizer:
 
     def encode(self, text: str) -> list[int]:
         text_copy = [text]
-
-        # logger.info(self.special_tokens)
-        # logger.info(text_copy)
+        logger.debug(f"{text_copy = }")
 
         # Process special tokens.
         if self.special_tokens:
-            for special in self.special_tokens:
+            for special in sorted(self.special_tokens, key=len, reverse=True):
                 new_parts = []
                 for part in text_copy:
-                    if isinstance(part, int) or special not in part:
+                    if isinstance(part, int):
                         new_parts.append(part)
                     else:
-                        for subpart in part.split(special):
-                            new_parts.append(subpart)
-                            new_parts.append(self.inverted_vocab[bytes(special, encoding="utf-8")])
-
+                        for subpart in re.split(f"({re.escape(special)})", part):
+                            if not subpart:
+                                continue
+                            if subpart == special:
+                                new_parts.append(self.inverted_vocab[bytes(special, encoding="utf-8")])
+                            else:
+                                new_parts.append(subpart)
                 text_copy = new_parts[:]
+
+        # logger.info(f"{text_copy = }")
 
         # Process text to bytes for parts that are not already processed as special tokens.
         text_bytes_list = []
