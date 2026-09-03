@@ -333,7 +333,8 @@ class SerializedTokenizer:
         return text_bytes_list
 
     def encode_iterable(self, iterable: Iterable[str]) -> Iterator[int]:
-        raise NotImplementedError("Encoding iterables is not supported yet.")
+        for item in iterable:
+            yield from self.encode(item)
 
     def decode(self, ids: list[int]) -> str:
         logger.debug(f"decode::{ids = }")
