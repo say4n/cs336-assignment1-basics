@@ -270,16 +270,14 @@ class SerializedTokenizer:
             for special in self.special_tokens:
                 new_parts = []
                 for part in text_copy:
-                    if special in part:
+                    if isinstance(part, int) or special not in part:
+                        new_parts.append(part)
+                    else:
                         for subpart in part.split(special):
                             new_parts.append(subpart)
                             new_parts.append(self.inverted_vocab[bytes(special, encoding="utf-8")])
-                    else:
-                        new_parts.append(part)
-                        new_parts.append("THIS-WILL-BE-REMOVED")
 
-                # Omit last as we always add one extra.
-                text_copy = new_parts[:-1]
+                text_copy = new_parts[:]
 
         # Process text to bytes for parts that are not already processed as special tokens.
         text_bytes_list = []
