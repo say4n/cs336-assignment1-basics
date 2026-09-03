@@ -11,8 +11,8 @@ from joblib import delayed, Parallel
 
 from tests.common import gpt2_bytes_to_unicode
 
-logger.remove()
-logger.add(sys.stderr, level="INFO")
+# logger.remove()
+# logger.add(sys.stderr, level="INFO")
 
 PAT = re.compile(
     r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
@@ -85,7 +85,7 @@ class Tokenizer:
         if current:
             parts_of_parts.append(current)
 
-        logger.debug(f"processing { len(parts_of_parts) = }")
+        # logger.debug(f"processing { len(parts_of_parts) = }")
 
         def process_part(part_of_parts: list[str]) -> Counter[str, int]:
             partial_pretoken_counts = Counter()
@@ -107,7 +107,7 @@ class Tokenizer:
         ):
             pretoken_counts.update(partial_pretoken_count)
 
-        logger.debug(f"processed { len(parts_of_parts) = }")
+        # logger.debug(f"processed { len(parts_of_parts) = }")
 
         for pretoken, count in pretoken_counts.items():
             self.chunks[tuple(pretoken.encode("utf-8"))] += count
@@ -134,7 +134,7 @@ class Tokenizer:
             key=lambda el: (el[1], tuple(map(lambda tid: self.vocab[tid], el[0]))),
         )
 
-        logger.debug(f"{ self.vocab_size() = }")
+        # logger.debug(f"{ self.vocab_size() = }")
 
         # Add byte pair as new token to vocab.
         most_frequent_byte_pair = most_frequent_byte_pair_with_frequency[0]
@@ -205,9 +205,9 @@ class Tokenizer:
 
     def train(self) -> tuple[dict[int, bytes] | None, list[tuple[bytes, bytes]] | None]:
         """Tokenize a corpus with BPE."""
-        logger.debug(f"{ len(self.chunks) = }")
-        logger.debug(f"{ sum(self.chunks.values()) = }")
-        logger.debug(f"{ sum(map(len, self.chunks.keys())) = }")
+        # logger.debug(f"{ len(self.chunks) = }")
+        # logger.debug(f"{ sum(self.chunks.values()) = }")
+        # logger.debug(f"{ sum(map(len, self.chunks.keys())) = }")
 
         with tqdm(total=100, desc="Training", unit_scale=True) as pbar:
             # Seed initial byte pair frequency.
@@ -215,7 +215,7 @@ class Tokenizer:
 
             while self.vocab_size() < self.max_vocab_size and self.can_merge:
                 self._merge_most_frequent_byte_pair()
-                logger.debug(
+                # logger.debug(
                     f"n_vocab % = { self.vocab_size() / self.max_vocab_size :.4f} | { self.merges = }"
                 )
                 delta = 100 * (self.vocab_size() / self.max_vocab_size) - pbar.n
@@ -337,13 +337,13 @@ class SerializedTokenizer:
             yield from self.encode(item)
 
     def decode(self, ids: list[int]) -> str:
-        logger.debug(f"decode::{ids = }")
+        # logger.debug(f"decode::{ids = }")
 
         decoded_seq = list(map(lambda token_id: self.vocab[token_id], ids))
-        logger.debug(f"decode::{decoded_seq = }")
+        # logger.debug(f"decode::{decoded_seq = }")
 
         joined_seq = b"".join(decoded_seq)
-        logger.debug(f"decode::{joined_seq = }")
+        # logger.debug(f"decode::{joined_seq = }")
 
         try:
             return joined_seq.decode(encoding="utf-8")
@@ -361,6 +361,6 @@ if __name__ == "__main__":
     start_time = time.time()
     vocab, merges = t.train()
     delta_time = time.time() - start_time
-    logger.info(f"trained tokenizer in {delta_time} sec.")
+    # logger.info(f"trained tokenizer in {delta_time} sec.")
 
     # t.write_merges_to_file()
