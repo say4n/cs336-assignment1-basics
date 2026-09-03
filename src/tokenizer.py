@@ -300,14 +300,14 @@ class SerializedTokenizer:
                     ids = process_byte_string(m.group())
                     # Can't merge < 2 items.
                     if len(ids) >= 2:
-                        logger.debug(f"encode::{ids}")
+                        # logger.debug(f"encode::{ids}")
             
                         for a, b in self.merges:
                             i, merged_text_bytes_list = 0, []
                             iva, ivb = self.inverted_vocab[a], self.inverted_vocab[b]
                             did_merge = False
             
-                            logger.debug(f"encode::trying to merge with {a, b} -> {iva, ivb}")
+                            # logger.debug(f"encode::trying to merge with {a, b} -> {iva, ivb}")
             
                             while i < len(ids) - 1:
                                 if (ids[i], ids[i + 1]) == (iva, ivb):
@@ -323,12 +323,12 @@ class SerializedTokenizer:
                                     merged_text_bytes_list.append(ids[i])
             
                             if did_merge:
-                                logger.debug(f"encode::{a, b} -> {iva, ivb}")
+                                # logger.debug(f"encode::{a, b} -> {iva, ivb}")
                                 ids = merged_text_bytes_list[:]
                     
                     text_bytes_list.extend(ids)
 
-        logger.debug(f"encode::{text_bytes_list = }")
+        # logger.debug(f"encode::{text_bytes_list = }")
 
         return text_bytes_list
 
