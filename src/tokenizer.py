@@ -14,6 +14,10 @@ from tests.common import gpt2_bytes_to_unicode
 logger.remove()
 logger.add(sys.stderr, level="INFO")
 
+PAT = re.compile(
+    r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+)
+
 
 class Tokenizer:
     def __init__(self, corpus: Path | str, vocab_size: int, special_tokens: list[str]):
@@ -49,9 +53,7 @@ class Tokenizer:
             raise ValueError("`corpus` must either be a path or string")
 
     def __init_chunk_with_regex(self):
-        word_boundary_pattern = re.compile(
-            r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
-        )
+        word_boundary_pattern = PAT
 
         pretoken_counts = Counter()
 
@@ -260,7 +262,7 @@ class SerializedTokenizer:
 
     def encode(self, text: str) -> list[int]:
         text_copy = [text]
-        logger.debug(f"{text_copy = }")
+        # logger.info(f"{text_copy = }")
 
         # Process special tokens.
         if self.special_tokens:
@@ -294,37 +296,37 @@ class SerializedTokenizer:
             if isinstance(part, int):
                 text_bytes_list.append(part)
             else:
-                text_bytes_list.extend(process_byte_string(part))
-
-        logger.debug(f"encode::{text_bytes_list = }")
-
-        # Can't merge < 2 items.
-        if len(text_bytes_list) >= 2:
-            logger.debug(f"encode::{text_bytes_list}")
-
-            for a, b in self.merges:
-                i, merged_text_bytes_list = 0, []
-                iva, ivb = self.inverted_vocab[a], self.inverted_vocab[b]
-                did_merge = False
-
-                logger.debug(f"encode::trying to merge with {a, b} -> {iva, ivb}")
-
-                while i < len(text_bytes_list) - 1:
-                    if (text_bytes_list[i], text_bytes_list[i + 1]) == (iva, ivb):
-                        merged_text_bytes_list.append(self.inverted_vocab[a + b])
-                        did_merge = True
-                        i += 2
-                    else:
-                        merged_text_bytes_list.append(text_bytes_list[i])
-                        i += 1
-
-                    # Last index, can't merge any more.
-                    if i == len(text_bytes_list) - 1:
-                        merged_text_bytes_list.append(text_bytes_list[i])
-
-                if did_merge:
-                    logger.debug(f"encode::{a, b} -> {iva, ivb}")
-                text_bytes_list = merged_text_bytes_list[:]
+                for m in PAT.finditer(part):
+                    ids = process_byte_string(m.group())
+                    # Can't merge < 2 items.
+                    if len(ids) >= 2:
+                        logger.debug(f"encode::{ids}")
+            
+                        for a, b in self.merges:
+                            i, merged_text_bytes_list = 0, []
+                            iva, ivb = self.inverted_vocab[a], self.inverted_vocab[b]
+                            did_merge = False
+            
+                            logger.debug(f"encode::trying to merge with {a, b} -> {iva, ivb}")
+            
+                            while i < len(ids) - 1:
+                                if (ids[i], ids[i + 1]) == (iva, ivb):
+                                    merged_text_bytes_list.append(self.inverted_vocab[a + b])
+                                    did_merge = True
+                                    i += 2
+                                else:
+                                    merged_text_bytes_list.append(ids[i])
+                                    i += 1
+            
+                                # Last index, can't merge any more.
+                                if i == len(ids) - 1:
+                                    merged_text_bytes_list.append(ids[i])
+            
+                            if did_merge:
+                                logger.debug(f"encode::{a, b} -> {iva, ivb}")
+                                ids = merged_text_bytes_list[:]
+                    
+                    text_bytes_list.extend(ids)
 
         logger.debug(f"encode::{text_bytes_list = }")
 
