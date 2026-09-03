@@ -246,6 +246,11 @@ class SerializedTokenizer:
 
         self.inverted_vocab = {v: k for (k, v) in self.vocab.items()}
 
+        if special_tokens:
+            assert list(
+                bytes(t, encoding="utf-8") in self.inverted_vocab for t in special_tokens
+            )
+
     def from_files(
         cls,
         vocab_filepath: str,
@@ -255,8 +260,34 @@ class SerializedTokenizer:
         raise NotImplementedError("Instantiating from serialized files not supported yet.")
 
     def encode(self, text: str) -> list[int]:
-        text_bytes = [bytes([b]) for b in bytes(text, encoding="utf-8")]
-        text_bytes_list = list(map(lambda ch: self.inverted_vocab[ch], text_bytes))
+        text_copy = [text]
+
+        # Process special tokens.
+        if self.special_tokens:
+            for special in self.special_tokens:
+                new_parts = []
+                for parts in text_copy:
+                    for subpart in parts.split(special):
+                        new_parts.append(subpart)
+                        new_parts.append(self.inverted_vocab[bytes(special, encoding="utf-8")])
+
+                # Omit last as we always add one extra.
+                text_copy = new_parts[:-2]
+
+        # Process text to bytes for parts that are not already processed as special tokens.
+        text_bytes_list = []
+
+        def process_byte_string(string: str) -> list[int]:
+            string_bytes = [bytes([b]) for b in bytes(string, encoding="utf-8")]
+            string_bytes_list = list(map(lambda ch: self.inverted_vocab[ch], string_bytes))
+
+            return string_bytes_list
+
+        for part in text_copy:
+            if isinstance(part, int):
+                text_bytes_list.append(part)
+            else:
+                text_bytes_list.extend(process_byte_string(part))
 
         logger.debug(f"encode::{text_bytes_list = }")
 
@@ -299,11 +330,15 @@ class SerializedTokenizer:
         logger.debug(f"decode::{ids = }")
 
         decoded_seq = list(map(lambda token_id: self.vocab[token_id], ids))
-        joined_seq = b"".join(decoded_seq).decode("utf-8")
+        logger.debug(f"decode::{decoded_seq = }")
 
+        joined_seq = b"".join(decoded_seq)
         logger.debug(f"decode::{joined_seq = }")
 
-        return joined_seq
+        try:
+            return joined_seq.decode(encoding="utf-8")
+        except UnicodeDecodeError:
+            return ""
 
 
 if __name__ == "__main__":
