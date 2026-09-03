@@ -216,8 +216,8 @@ class Tokenizer:
             while self.vocab_size() < self.max_vocab_size and self.can_merge:
                 self._merge_most_frequent_byte_pair()
                 # logger.debug(
-                    f"n_vocab % = { self.vocab_size() / self.max_vocab_size :.4f} | { self.merges = }"
-                )
+                #     f"n_vocab % = { self.vocab_size() / self.max_vocab_size :.4f} | { self.merges = }"
+                # )
                 delta = 100 * (self.vocab_size() / self.max_vocab_size) - pbar.n
                 pbar.update(delta)
 
