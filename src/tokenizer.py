@@ -262,39 +262,31 @@ class SerializedTokenizer:
 
         # Can't merge < 2 items.
         if len(text_bytes_list) >= 2:
-            i = 0
-            merged_text_bytes_list = []
+            logger.debug(f"encode::{text_bytes_list}")
 
-            while i < len(text_bytes_list) - 1:
-                any_merged = False
+            for a, b in self.merges:
+                i, merged_text_bytes_list = 0, []
+                iva, ivb = self.inverted_vocab[a], self.inverted_vocab[b]
+                did_merge = False
 
-                logger.debug(f"encode::{i = } {text_bytes_list = }")
+                logger.debug(f"encode::trying to merge with {a, b} -> {iva, ivb}")
 
-                for a, b in self.merges:
-                    merged_pair_tokens = (
-                        self.inverted_vocab[a],
-                        self.inverted_vocab[b]
-                    )
-
-                    if (text_bytes_list[i], text_bytes_list[i + 1]) == merged_pair_tokens:
-                        logger.debug(f"encode::{i = } merging {merged_pair_tokens}")
+                while i < len(text_bytes_list) - 1:
+                    if (text_bytes_list[i], text_bytes_list[i + 1]) == (iva, ivb):
                         merged_text_bytes_list.append(self.inverted_vocab[a + b])
-                        any_merged = True
-                        break
+                        did_merge = True
+                        i += 2
+                    else:
+                        merged_text_bytes_list.append(text_bytes_list[i])
+                        i += 1
 
-                logger.debug(f"encode::{i = } {any_merged = }")
+                    # Last index, can't merge any more.
+                    if i == len(text_bytes_list) - 1:
+                        merged_text_bytes_list.append(text_bytes_list[i])
 
-                if any_merged:
-                    i += 2
-                else:
-                    merged_text_bytes_list.append(text_bytes_list[i])
-                    i += 1
-
-                # At last index, can't merge anything after.
-                if i == len(text_bytes_list) - 1:
-                    merged_text_bytes_list.append(text_bytes_list[-1])
-
-            text_bytes_list = merged_text_bytes_list[:]
+                if did_merge:
+                    logger.debug(f"encode::{a, b} -> {iva, ivb}")
+                text_bytes_list = merged_text_bytes_list[:]
 
         logger.debug(f"encode::{text_bytes_list = }")
 
