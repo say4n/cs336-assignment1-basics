@@ -262,17 +262,24 @@ class SerializedTokenizer:
     def encode(self, text: str) -> list[int]:
         text_copy = [text]
 
+        # logger.info(self.special_tokens)
+        # logger.info(text_copy)
+
         # Process special tokens.
         if self.special_tokens:
             for special in self.special_tokens:
                 new_parts = []
-                for parts in text_copy:
-                    for subpart in parts.split(special):
-                        new_parts.append(subpart)
-                        new_parts.append(self.inverted_vocab[bytes(special, encoding="utf-8")])
+                for part in text_copy:
+                    if special in part:
+                        for subpart in part.split(special):
+                            new_parts.append(subpart)
+                            new_parts.append(self.inverted_vocab[bytes(special, encoding="utf-8")])
+                    else:
+                        new_parts.append(part)
+                        new_parts.append("THIS-WILL-BE-REMOVED")
 
                 # Omit last as we always add one extra.
-                text_copy = new_parts[:-2]
+                text_copy = new_parts[:-1]
 
         # Process text to bytes for parts that are not already processed as special tokens.
         text_bytes_list = []
