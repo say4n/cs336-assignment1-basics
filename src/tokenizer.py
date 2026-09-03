@@ -240,7 +240,11 @@ class SerializedTokenizer:
         merges: list[tuple[bytes, bytes]],
         special_tokens: list[str] | None = None,
     ):
-        pass
+        self.vocab = vocab
+        self.merges = merges
+        self.special_tokens = special_tokens
+
+        self.inverted_vocab = {v: k for (k, v) in self.vocab.items()}
 
     def from_files(
         cls,
@@ -248,16 +252,66 @@ class SerializedTokenizer:
         merges_filepath: str,
         special_tokens: list[str] | None = None,
     ):
-        pass
+        raise NotImplementedError("Instantiating from serialized files not supported yet.")
 
     def encode(self, text: str) -> list[int]:
-        pass
+        text_bytes = [bytes([b]) for b in bytes(text, encoding="utf-8")]
+        text_bytes_list = list(map(lambda ch: self.inverted_vocab[ch], text_bytes))
+
+        logger.debug(f"encode::{text_bytes_list = }")
+
+        # Can't merge < 2 items.
+        if len(text_bytes_list) >= 2:
+            i = 0
+            merged_text_bytes_list = []
+
+            while i < len(text_bytes_list) - 1:
+                any_merged = False
+
+                logger.debug(f"encode::{i = } {text_bytes_list = }")
+
+                for a, b in self.merges:
+                    merged_pair_tokens = (
+                        self.inverted_vocab[a],
+                        self.inverted_vocab[b]
+                    )
+
+                    if (text_bytes_list[i], text_bytes_list[i + 1]) == merged_pair_tokens:
+                        logger.debug(f"encode::{i = } merging {merged_pair_tokens}")
+                        merged_text_bytes_list.append(self.inverted_vocab[a + b])
+                        any_merged = True
+                        break
+
+                logger.debug(f"encode::{i = } {any_merged = }")
+
+                if any_merged:
+                    i += 2
+                else:
+                    merged_text_bytes_list.append(text_bytes_list[i])
+                    i += 1
+
+                # At last index, can't merge anything after.
+                if i == len(text_bytes_list) - 1:
+                    merged_text_bytes_list.append(text_bytes_list[-1])
+
+            text_bytes_list = merged_text_bytes_list[:]
+
+        logger.debug(f"encode::{text_bytes_list = }")
+
+        return text_bytes_list
 
     def encode_iterable(self, iterable: Iterable[str]) -> Iterator[int]:
-        pass
+        raise NotImplementedError("Encoding iterables is not supported yet.")
 
     def decode(self, ids: list[int]) -> str:
-        pass
+        logger.debug(f"decode::{ids = }")
+
+        decoded_seq = list(map(lambda token_id: self.vocab[token_id], ids))
+        joined_seq = b"".join(decoded_seq).decode("utf-8")
+
+        logger.debug(f"decode::{joined_seq = }")
+
+        return joined_seq
 
 
 if __name__ == "__main__":
