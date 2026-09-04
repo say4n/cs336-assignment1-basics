@@ -1,4 +1,3 @@
-from importlib.metadata import requires
 import torch
 from torch import nn
 
