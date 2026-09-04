@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.embedding import Embedding
+from src.embedding import Embedding, RotaryPositionalEmbedding
 from src.layers import Linear, SwiGLU
 from src.regularization import RMSNorm
 from src.tokenizer import Tokenizer, SerializedTokenizer
@@ -218,7 +218,9 @@ def run_rope(
     Returns:
         Float[Tensor, " ... sequence_length d_k"]: Tensor with RoPEd input.
     """
-    raise NotImplementedError
+    r = RotaryPositionalEmbedding(theta, d_k, max_seq_len, device=in_query_or_key.device)
+    
+    return r.forward(in_query_or_key, token_positions)
 
 
 def run_transformer_block(
