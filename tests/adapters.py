@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from src.embedding import Embedding
-from src.linear import Linear
+from src.layers import Linear, SwiGLU
 from src.regularization import RMSNorm
 from src.tokenizer import Tokenizer, SerializedTokenizer
 
@@ -93,7 +93,15 @@ def run_swiglu(
     # swiglu.w1.weight.data = w1_weight
     # swiglu.w2.weight.data = w2_weight
     # swiglu.w3.weight.data = w3_weight
-    raise NotImplementedError
+
+    swiglu = SwiGLU(d_model, d_ff, w1_weight.device, w1_weight.dtype)
+    swiglu.load_state_dict({
+        "w1": w1_weight,
+        "w2": w2_weight,
+        "w3": w3_weight,
+    })
+
+    return swiglu.forward(in_features)
 
 
 def run_scaled_dot_product_attention(

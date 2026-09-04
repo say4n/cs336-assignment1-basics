@@ -7,6 +7,8 @@
         "pretoken",
         "repr",
         "sdmt",
+        "silu",
+        "swiglu",
         "tinystories",
         "vocabs"
     ]
