@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from src.embedding import Embedding
 from src.linear import Linear
 from src.tokenizer import Tokenizer, SerializedTokenizer
 
@@ -57,8 +58,10 @@ def run_embedding(
         Float[Tensor, "... d_model"]: Batch of embeddings returned by your Embedding layer.
     """
 
-    raise NotImplementedError
+    embedding = Embedding(vocab_size, d_model)
+    embedding.embedding_matrix = torch.nn.Parameter(weights)
 
+    return embedding.forward(token_ids)
 
 def run_swiglu(
     d_model: int,
