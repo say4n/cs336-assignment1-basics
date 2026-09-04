@@ -4,7 +4,7 @@ from src.embedding import Embedding, RotaryPositionalEmbedding
 from src.layers import Linear, SwiGLU
 from src.regularization import RMSNorm
 from src.tokenizer import Tokenizer, SerializedTokenizer
-from src.utils import softmax
+from src.utils import softmax, scaled_dot_product_attention
 
 import os
 from collections.abc import Iterable
@@ -123,7 +123,7 @@ def run_scaled_dot_product_attention(
     Returns:
         Float[Tensor, " ... queries d_v"]: Output of SDPA
     """
-    raise NotImplementedError
+    return scaled_dot_product_attention(Q, K, V, mask)
 
 
 def run_multihead_self_attention(
