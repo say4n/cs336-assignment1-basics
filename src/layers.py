@@ -58,15 +58,23 @@ class SwiGLU(nn.Module):
         silu: ... d_ff
         w3_x: ... d_ff
         """
-        w1_x = einsum(self.w1, x, "d_ff d_model, ... d_model -> ... d_ff")
-        silu = w1_x / (1 + torch.exp(-w1_x))
+        w1_x = einsum(
+            self.w1, x, 
+            "d_ff d_model, ... d_model -> ... d_ff"
+        )
+        
+        silu = w1_x * torch.sigmoid(w1_x)
 
-        w3_x = einsum(self.w3, x, "d_ff d_model, ... d_model -> ... d_ff")
+        w3_x = einsum(
+            self.w3, x, 
+            "d_ff d_model, ... d_model -> ... d_ff"
+        )
+        
         silu_w3_x = silu * w3_x
 
         swiglu = einsum(
             silu_w3_x, self.w2,
-            "batch sequence d_ff, d_model d_ff -> batch sequence d_model",
+            "... d_ff, d_model d_ff -> ... d_model",
         )
 
         return swiglu
