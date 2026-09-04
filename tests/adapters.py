@@ -4,6 +4,7 @@ from src.embedding import Embedding, RotaryPositionalEmbedding
 from src.layers import Linear, SwiGLU
 from src.regularization import RMSNorm
 from src.tokenizer import Tokenizer, SerializedTokenizer
+from src.utils import softmax
 
 import os
 from collections.abc import Iterable
@@ -454,7 +455,7 @@ def run_softmax(in_features: Float[Tensor, " ..."], dim: int) -> Float[Tensor, "
         Float[Tensor, "..."]: Tensor of with the same shape as `in_features` with the output of
         softmax normalizing the specified `dim`.
     """
-    raise NotImplementedError
+    return softmax(in_features, dim)
 
 
 def run_cross_entropy(

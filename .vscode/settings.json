@@ -3,6 +3,7 @@
         "codepoint",
         "endoftext",
         "jaxtyping",
+        "keepdim",
         "pbar",
         "pretoken",
         "repr",
