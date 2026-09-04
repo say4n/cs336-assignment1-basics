@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+from src.linear import Linear
 from src.tokenizer import Tokenizer, SerializedTokenizer
 
 import os
@@ -30,7 +32,10 @@ def run_linear(
         Float[Tensor, "... d_out"]: The transformed output of your linear module.
     """
 
-    raise NotImplementedError
+    layer = Linear(d_in, d_out)
+    layer.W = torch.nn.Parameter(weights)
+
+    return layer.forward(in_features)
 
 
 def run_embedding(
